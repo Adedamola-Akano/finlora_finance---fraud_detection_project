@@ -66,5 +66,34 @@ Since this is prototype/synthetic data (not live production fraud data, per proj
 this pattern should be treated as a strong but possibly dataset-specific signal — real-world
 velocity effects are typically directional rather than this deterministic.
 
-*(Additional sections — device novelty, cross-border activity, channel, merchant
-category — to be added as each is analyzed.)*
+
+## 3. Device Novelty (`has_device_on_record`, `is_new_device`)
+
+**Question:** Does missing device data, or transacting from a new/unrecognized device,
+correlate with fraud?
+
+**Method:** Two separate checks — first whether having no device on record at all
+correlates with fraud, then (among transactions with a device recorded) whether the device
+being new correlates with fraud.
+
+**Result:**
+
+| | Legitimate | Fraud |
+|---|---|---|
+| No device on record | 97.6% | 2.4% |
+| Has device on record | 97.3% | 2.7% |
+
+| | Legitimate | Fraud |
+|---|---|---|
+| Known device | 97.4% | 2.6% |
+| New device | 94.1% | **5.9%** |
+
+**Finding:** Simply having no device on record is **not** a meaningful signal — both rows
+sit at baseline, consistent with the earlier finding that this missingness is essentially
+random. However, among transactions with a recorded device, a **new** device more than
+doubles the fraud rate (2.6% → 5.9%). This is a real but moderate signal — most new-device
+transactions are still legitimate, so it's more useful in combination with other features
+than as a standalone flag.
+
+*(Additional sections — cross-border activity, channel, merchant
+category — to be added as each is analyzed.)*git 
