@@ -35,7 +35,36 @@ transactions in both classes. The median is the more representative statistic he
 skew is also why the modeling plan calls for standardizing features before Logistic
 Regression — raw amount-ratio values span from near-zero to over 30,000x.
 
----
 
-*(Additional sections — velocity, device novelty, cross-border activity, channel, merchant
+## 2. Transaction Velocity (`transaction_velocity_1h`)
+
+**Question:** Do fraud transactions cluster with unusually high transaction counts in the
+trailing 1-hour window?
+
+**Method:** Compared transaction_velocity_1h between legitimate and fraud transactions,
+then computed fraud rate at each velocity level directly (crosstab normalized by row).
+
+**Result:**
+
+| Velocity (txns in trailing 1h) | Legitimate | Fraud |
+|---|---|---|
+| 0 | 98.3% | 1.7% |
+| 1 | 7.4% | 92.6% |
+| 2 | 11.5% | 88.5% |
+| 3 | 0% | 100% |
+
+**Finding:** Velocity is the **strongest signal identified so far**. 98.9% of all
+transactions have velocity 0 and sit at the baseline ~2% fraud rate, but any transaction
+with velocity ≥1 is overwhelmingly likely to be fraud (88–100%). This matches a common
+real-world fraud pattern — rapid repeat transactions on a compromised account or card
+before it's caught. Note: velocity is computed from transaction timing at the moment of
+the transaction, so — unlike `status` — it does not carry the same look-ahead/leakage risk;
+this information is genuinely available at scoring time.
+
+**Caveat:** the near-binary separation here is unusually clean for a real-world signal.
+Since this is prototype/synthetic data (not live production fraud data, per project scope),
+this pattern should be treated as a strong but possibly dataset-specific signal — real-world
+velocity effects are typically directional rather than this deterministic.
+
+*(Additional sections — device novelty, cross-border activity, channel, merchant
 category — to be added as each is analyzed.)*
