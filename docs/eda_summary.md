@@ -157,3 +157,47 @@ volume (no small-sample noise). The ranking is intuitive: programmatic/API acces
 somewhat more fraud risk than direct human channels, while USSD (tightly tied to a
 phone/SIM) is safest. Real but modest — comparable to cross-border activity, well below
 velocity or amount deviation in strength.
+
+
+## 6. Merchant Category
+
+**Question:** Does fraud concentrate in specific merchant categories?
+
+**Method:** Fraud rate per category, ranked highest to lowest, checked against transaction
+volume.
+
+**Result (highest and lowest risk categories):**
+
+| Category | Transactions | Fraud Rate |
+|---|---|---|
+| Wire Transfer | 7,639 | 7.58% |
+| Payroll Transfer | 17,117 | 5.59% |
+| Crypto Exchange | 1,692 | 5.20% |
+| ... | | |
+| Groceries | 13,650 | 1.26% |
+| Restaurants | 8,416 | 1.12% |
+
+**Finding:** Merchant category is the **strongest categorical signal** identified — a ~6.8x
+spread between riskiest (Wire Transfer) and safest (Restaurants) categories, all backed by
+solid volume. The top three risky categories (Wire Transfer, Payroll Transfer, Crypto
+Exchange) share a common trait: large, fast, hard-to-reverse fund movements — exactly what
+fraud tends to target. Notably, P2P Transfer sits near baseline (2.54%) despite also lacking
+a traditional merchant, showing that "no merchant involved" alone doesn't drive risk — it's
+specifically the large/irreversible transfer pattern that does.
+
+---
+
+## Summary Across All Six Signals
+
+| Signal | Strength |
+|---|---|
+| Transaction velocity | **Very strong** (near-deterministic; caveat: dataset may over-represent this) |
+| Amount-to-average deviation | **Strong** (~6x median shift) |
+| Merchant category | **Strong** (~6.8x spread; intuitive pattern) |
+| Device novelty (new device) | **Moderate** (2.6% → 5.9%) |
+| Channel | **Weak-to-moderate** (~1.7x spread) |
+| Cross-border activity | **Weak** (2.6% → 3.4%) |
+| Device on record (missing) | **No signal** |
+
+These findings directly inform Step 4 (Feature Engineering) and the feature importance
+analysis expected from the trained models in Step 5–6.
