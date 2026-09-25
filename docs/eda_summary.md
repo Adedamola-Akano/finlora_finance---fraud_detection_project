@@ -109,3 +109,51 @@ than as a standalone flag.
 
 *(Additional sections — cross-border activity, channel, merchant
 category — to be added as each is analyzed.)*git 
+
+
+## 4. Cross-Border Activity (`is_cross_border`)
+
+**Question:** Is fraud disproportionately cross-border?
+
+**Method:** Compared fraud rate between domestic and cross-border transactions; checked
+overall prevalence of cross-border activity.
+
+**Result:**
+
+| | Legitimate | Fraud |
+|---|---|---|
+| Domestic | 97.4% | 2.6% |
+| Cross-border | 96.6% | 3.4% |
+
+Cross-border transactions make up only 2.0% of all transactions.
+
+**Finding:** Cross-border activity is a **weak** signal — fraud rate rises modestly (2.6% →
+3.4%) but the effect is small compared to velocity or amount deviation, and the feature is
+rare overall (only 2% of transactions). Direction is intuitive (cross-border carries more
+risk), but this alone won't meaningfully separate fraud from legitimate activity.
+
+
+## 5. Channel
+
+**Question:** Does fraud concentrate in specific transaction channels?
+
+**Method:** Fraud rate per channel, ranked highest to lowest, checked against transaction
+volume to rule out small-sample noise.
+
+**Result:**
+
+| Channel | Transactions | Fraud Rate |
+|---|---|---|
+| API/Integration | 13,083 | 3.65% |
+| Web Dashboard | 31,330 | 2.96% |
+| Mobile App | 41,615 | 2.51% |
+| Card Not Present | 17,422 | 2.34% |
+| Card Present | 15,080 | 2.24% |
+| USSD | 7,470 | 2.12% |
+
+**Finding:** Channel is a **weak-to-moderate** signal. Fraud rate ranges from 2.12%
+(USSD) to 3.65% (API/Integration) — about a 1.7x spread, all backed by solid transaction
+volume (no small-sample noise). The ranking is intuitive: programmatic/API access carries
+somewhat more fraud risk than direct human channels, while USSD (tightly tied to a
+phone/SIM) is safest. Real but modest — comparable to cross-border activity, well below
+velocity or amount deviation in strength.
