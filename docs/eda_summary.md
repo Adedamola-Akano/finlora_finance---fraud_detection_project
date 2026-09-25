@@ -201,3 +201,27 @@ specifically the large/irreversible transfer pattern that does.
 
 These findings directly inform Step 4 (Feature Engineering) and the feature importance
 analysis expected from the trained models in Step 5–6.
+
+
+## Summary
+
+Final feature set: 7 numeric features + 22 one-hot encoded categorical columns (from
+account_type, kyc_tier, merchant_category, channel) = 29 features total.
+
+Key decision: `is_new_device` nulls (missing device data) filled with 0 rather than 1,
+based on EDA evidence that missing device data shows baseline fraud rate, while genuinely
+new devices show a real elevated rate — filling with 1 would have falsely inflated risk on
+rows the data shows are not actually elevated.
+
+## Summary
+
+Final feature set: 7 numeric features + 22 one-hot encoded categorical columns (from
+account_type, kyc_tier, merchant_category, channel) = 29 features total.
+
+Key decision: `is_new_device` nulls (missing device data) filled with 0 rather than 1,
+based on EDA evidence that missing device data shows baseline fraud rate, while genuinely
+new devices show a real elevated rate — filling with 1 would have falsely inflated risk on
+rows the data shows are not actually elevated.
+
+Output: `data/processed/finlora_model_ready.csv` — fully numeric, model-ready dataset
+(126,000 rows × 30 columns, including target).
