@@ -8,7 +8,7 @@ Dataset: `data/processed/finlora_cleaned.csv` (126,000 transactions, fraud rate 
 
 ## Note: `merchant_name` Missing Values Explained
 
-Investigating missing `merchant_name` values (28,610 rows) after refining the fill logic
+Investigating missing `merchant_name` values (28,610 rows) after refining the fill logicgit 
 revealed the pattern is structural, not random: ~97% of missing merchant names come from
 `Payroll Transfer` and `P2P Transfer` transactions, which genuinely have no associated
 merchant (money movement between accounts/employer, not a purchase). This confirms
