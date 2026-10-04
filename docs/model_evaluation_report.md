@@ -6,6 +6,14 @@ test transactions, fraud rate 2.66% preserved in both).
 
 ---
 
+**Update:** `amount_to_avg_ratio` was winsorized (capped at the 99th percentile, 74.58)
+after deployment testing revealed some flagged transactions produced a fraud probability
+of exactly 1.000000 due to extreme outlier values (max observed: 31,762x baseline)
+saturating the sigmoid function. All models below were retrained on the winsorized
+feature. Metrics shifted only slightly (e.g. Logistic Regression ROC-AUC: 0.9345 → 0.9394)
+— the fix resolved probability calibration without materially changing classification
+performance. See Section 8 for the SMOTE comparison added in the same retraining pass.
+
 ## 1. Default-Threshold Performance (0.5 cutoff)
 
 | Metric (fraud class) | Logistic Regression | Random Forest |
@@ -89,3 +97,39 @@ that time.
   configuration could shift this comparison.
 - No separate validation set was used (75/25 train-test split only), consistent with the
   project's fixed-configuration, non-tuning scope — see `docs/problem_statement.md`.
+
+
+  ## 8. SMOTE vs. Class Weighting — Empirical Comparison
+
+**Question:** does SMOTE (synthetic oversampling) outperform class weighting
+(`class_weight='balanced'`) for addressing the 2.66% fraud class imbalance?
+
+**Method:** trained a third model — Logistic Regression on SMOTE-resampled training data
+(balanced to 50/50 fraud/legitimate via synthetic minority examples, no class weighting
+applied) — and evaluated it identically to the other two models, on the same unmodified
+test set.
+
+| Metric (fraud class) | LogReg (class_weight) | Random Forest | LogReg (SMOTE) |
+|---|---|---|---|
+| Precision | 0.37 | 0.32 | 0.36 |
+| Recall | 0.81 | 0.83 | 0.82 |
+| F1 | 0.51 | 0.46 | 0.50 |
+| ROC-AUC | 0.9394 | 0.9337 | 0.9389 |
+
+| Recall Target | LogReg (class_weight) | Random Forest | LogReg (SMOTE) |
+|---|---|---|---|
+| 70% | 0.655 | 0.561 | 0.656 |
+| 80% | 0.394 | 0.385 | 0.405 |
+| 90% | 0.142 | 0.130 | 0.142 |
+
+**Finding:** class weighting and SMOTE perform **statistically equivalently** on this
+dataset — all metrics fall within noise of each other, with no consistent advantage either
+way across any recall target. This empirically confirms the original Step 5 decision to use
+class weighting rather than SMOTE: the two approaches solve the imbalance problem
+comparably well here, so the simpler, lower-risk method (class weighting — no synthetic
+data generation, no risk of unrealistic interpolated fraud patterns) is preferred on the
+grounds of simplicity and interpretability, not because it was shown to be numerically
+superior.
+
+**Recommendation unchanged**: Logistic Regression (class weighting) remains the primary
+deployed model, per Section 4.
