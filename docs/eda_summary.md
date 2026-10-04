@@ -225,3 +225,38 @@ rows the data shows are not actually elevated.
 
 Output: `data/processed/finlora_model_ready.csv` — fully numeric, model-ready dataset
 (126,000 rows × 30 columns, including target).
+
+
+## Note: Currency Standardization
+
+**Investigated:** whether the `currency` column affects comparability of `amount` and
+`amount_to_avg_ratio` across accounts, following a review question about multi-currency
+data (NGN, USD, GBP, EUR all present in `finlora_transactions.csv`).
+
+**Found:** every account transacts in exactly one currency, consistently (never mixed).
+This means `amount_to_avg_ratio` — always a comparison to the *same account's own*
+baseline — remains valid as a currency-agnostic signal regardless of which currency an
+account uses, since both the transaction amount and the baseline it's compared to are in
+the same currency for any given account. No change to the model or its features was
+needed.
+
+**Also found (bug):** the Step 2 merge between transactions and accounts was silently
+producing duplicate `currency_x`/`currency_y` columns, since both source tables share a
+`currency` field and the original merge didn't account for it. Confirmed the two columns
+always agreed (0 mismatches), then corrected the merge to drop the duplicate from the
+accounts side, restoring a single clean `currency` column.
+
+**Added:** `amount_usd`, a standardized-to-USD version of `amount`, for display purposes
+only (not used as a model feature). Converted using approximate current mid-market
+exchange rates — a snapshot, not the historical rate on each transaction's actual date:
+
+| Currency | Rate to USD |
+|---|---|
+| USD | 1.00 |
+| GBP | 1.34 |
+| EUR | 1.14 |
+| NGN | 1 / 1,375 |
+
+This column makes transaction sizes visually comparable across accounts in the Streamlit
+review queue, where raw `amount` values in different currencies would otherwise look
+misleadingly comparable side by side.
