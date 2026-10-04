@@ -138,3 +138,20 @@ streamlit run app.py
 
 To retrain or re-run any phase, execute the notebooks in order (`01` through `04`) — each
 reads from the previous phase's saved output in `data/processed/`.
+
+## Note: Clarifying Column Counts Across Pipeline Stages
+
+Three different files in this pipeline happen to produce column counts that look similar
+or identical, which can be confusing — they are genuinely different sets of columns, not
+the same 29 appearing twice:
+
+| File | Shape | Contents |
+|---|---|---|
+| `data/processed/finlora_cleaned.csv` | 126,000 × 29 | Full cleaned dataset: identifiers, timestamps, raw amount/currency, engineered numeric signals, categorical fields as plain text, target label |
+| (intermediate, one-hot encoded, not saved separately) | 126,000 × 47 | Cleaned columns minus 4 categoricals, plus 22 new one-hot dummy columns |
+| `data/processed/finlora_model_ready.csv` | 126,000 × 30 | Final model input: 29 selected/encoded features + 1 target column (`is_fraud`) |
+
+The two "29"s are a coincidence of counting, not the same columns — the cleaned dataset's
+29 includes non-feature columns like `transaction_id` and `timestamp` that are deliberately
+excluded from modeling, while the model-ready file's 29 features are purely the encoded,
+numeric columns the model actually learns from.
