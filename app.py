@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
 
 st.title("Finlora Fraud Review Queue")
@@ -15,6 +16,7 @@ data = pd.read_csv("data/processed/test_review_queue.csv")
 # --- Score every transaction ---
 X = data[feature_columns]
 X_scaled = scaler.transform(X)
+X_scaled = np.clip(X_scaled, -5, 5)
 data['fraud_probability'] = logreg.predict_proba(X_scaled)[:, 1]
 
 # --- Build the ranked review queue ---
@@ -45,6 +47,7 @@ if selected_id:
     row = data[data['transaction_id'] == selected_id].iloc[0]
     row_features = row[feature_columns].values.reshape(1, -1)
     row_scaled = scaler.transform(row_features)
+    row_scaled = np.clip(row_scaled, -5, 5)
 
     # Contribution of each feature = (scaled value) x (model coefficient)
     contributions = row_scaled[0] * logreg.coef_[0]
@@ -53,17 +56,17 @@ if selected_id:
         'contribution': contributions
     }).sort_values('contribution', key=abs, ascending=False)
 
-    st.write(f"Fraud probability: **{row['fraud_probability']:.6f}**")
-    st.write(
-        "Top contributing factors (positive = raises fraud risk, negative = lowers it):")
-    st.dataframe(explanation.head(10), width='stretch')
-    # st.selectbox(...) creates a dropdown menu in the app,
-    # letting a user pick one transaction from the top 50.
-    # Once selected, we pull that exact row, extract just its feature values,
-    # scale them the same way as before,
-    # and multiply each scaled feature value by that feature's learned coefficient (logreg.coef_[0])
-    # — this is the mathematical heart of Logistic Regression's interpretability:
-    # each feature's contribution to the final score is literally just its value times its weight.
-    # We sort by absolute contribution size (key=abs) so the most influential factors —
-    # whether pushing risk up or down — appear first,
-    # and display the top 10 in a small table alongside the overall fraud probability.
+st.write(f"Fraud probability: **{row['fraud_probability']:.6f}**")
+st.write(
+    "Top contributing factors (positive = raises fraud risk, negative = lowers it):")
+st.dataframe(explanation.head(10), width='stretch')
+# st.selectbox(...) creates a dropdown menu in the app,
+# letting a user pick one transaction from the top 50.
+# Once selected, we pull that exact row, extract just its feature values,
+# scale them the same way as before,
+# and multiply each scaled feature value by that feature's learned coefficient (logreg.coef_[0])
+# — this is the mathematical heart of Logistic Regression's interpretability:
+# each feature's contribution to the final score is literally just its value times its weight.
+# We sort by absolute contribution size (key=abs) so the most influential factors —
+# whether pushing risk up or down — appear first,
+# and display the top 10 in a small table alongside the overall fraud probability.
