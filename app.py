@@ -88,6 +88,9 @@ if uploaded_file is not None:
     if missing_cols:
         st.error(f"Uploaded file is missing required columns: {missing_cols}")
     else:
+        upload_df['is_new_device'] = upload_df['is_new_device'].fillna(
+            0).astype(int)
+
         upload_df['amount_to_avg_ratio'] = upload_df['amount_to_avg_ratio'].clip(
             upper=amount_ratio_cap)
 
