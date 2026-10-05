@@ -1,8 +1,8 @@
 # Handover Summary — Finlora Transaction Fraud Detection
 
 **Project:** Transaction risk scoring model and analyst review queue for Finlora Fintech
-**Status:** Core pipeline complete and deployed (Steps 1–7). One enhancement (CSV upload)
-paused mid-design; see Section 6.
+**Status:** Core pipeline complete and deployed (Steps 1–7), plus a full round of fixes
+following supervisor review (see Section 7). CSV upload enhancement still pending.
 
 ---
 
@@ -15,114 +15,141 @@ with a continuous, rankable fraud probability score:
 - Documented evidence of which behavioral signals actually separate fraud from legitimate
   activity, ranked by strength
 - Two trained and evaluated classifiers (Logistic Regression, Random Forest), compared
-  fairly at multiple operating points rather than a single threshold
-- A deployed Streamlit application giving analysts a prioritized, explainable review queue
+  fairly at multiple operating points, plus a third variant using SMOTE to empirically test
+  an alternative imbalance-handling method
+- Feature importance analysis for both models, with a chart
+- A deployed Streamlit application giving analysts a prioritized, explainable review queue,
+  with currency-standardized amounts and no raw transaction IDs cluttering the display
 
 Full detail on each phase lives in the documents and notebooks referenced throughout this
 summary — this document is the map connecting them, not a replacement for them.
 
 ## 2. Project Structure
 
+```
 finlora_fintech/
 ├── data/
-│ ├── raw/ ← original CSVs, untouched
-│ └── processed/ ← cleaned, engineered, and review-ready outputs
+│   ├── raw/                        ← original CSVs, untouched
+│   └── processed/                  ← cleaned, engineered, and review-ready outputs
 ├── docs/
-│ ├── problem_statement.md ← Step 1
-│ ├── eda_summary.md ← Step 3 (all six signals, ranked)
-│ ├── model_evaluation_report.md ← Step 5–6 (model comparison and recommendation)
-│ └── handover_summary.md ← this document
+│   ├── problem_statement.md        ← Step 1
+│   ├── eda_summary.md              ← Step 3 (all six signals, ranked, + currency note)
+│   ├── model_evaluation_report.md  ← Step 5-6 (model comparison, feature importance, SMOTE)
+│   ├── feature_importance_chart.png
+│   └── handover_summary.md         ← this document
 ├── model/
-│ └── saved_models/ ← trained model, scaler, feature schema (.pkl files)
+│   └── saved_models/               ← trained model, scaler, feature schema (.pkl files)
 ├── notebooks/
-│ ├── 01_data_cleaning.ipynb
-│ ├── 02_eda.ipynb
-│ ├── 03_feature_engineering.ipynb
-│ └── 04_modeling.ipynb ← includes model training, evaluation, and saving
-└── app.py ← Streamlit review queue
-
+│   ├── 01_data_cleaning.ipynb
+│   ├── 02_eda.ipynb
+│   ├── 03_feature_engineering.ipynb
+│   └── 04_modeling.ipynb           ← includes model training, evaluation, and saving
+└── app.py                          ← Streamlit review queue
+```
 
 ## 3. Key Decisions Made Along the Way
-
-These are worth carrying forward, since each reflects a deliberate choice rather than a
-default:
 
 - **`status` excluded from model features** (Step 2): "Reversed" transactions showed a
   33% fraud rate vs. ~1.7% for other statuses — but a transaction's status often only
   resolves *after* the fact, making it a data leakage risk rather than a genuine
   at-scoring-time signal.
-- **Class weighting over SMOTE** (Step 5): `class_weight='balanced'` (and
-  `balanced_subsample` for Random Forest) was used to address the 2.66% fraud imbalance,
-  rather than synthetic oversampling — avoiding the risk of generating unrealistic
-  synthetic fraud patterns, and consistent with the balanced-subsampling approach already
-  specified for Random Forest.
+- **Class weighting over SMOTE, empirically validated** (Step 5, revisited in review round):
+  `class_weight='balanced'` was used to address the 2.66% fraud imbalance. A SMOTE variant
+  was later trained and evaluated side by side to directly test this choice — the two
+  approaches perform statistically equivalently (see `model_evaluation_report.md` Section
+  8), confirming class weighting as the simpler, lower-risk choice without sacrificing
+  performance.
 - **`is_new_device` nulls filled with 0, not 1** (Step 4): EDA showed missing device data
   sits at baseline fraud rate, while genuinely new devices show a real elevated rate.
-  Filling with 1 would have falsely inflated risk on rows the data shows are not actually
-  elevated.
 - **No train/validation/test split** (Step 5): a 75/25 stratified train-test split was used
-  instead of a three-way split, given the fixed model configurations specified (no extensive
-  hyperparameter search) and the limited size of the fraud-positive sample (3,352 cases).
-- **Logistic Regression selected as the primary deployed model** (Step 6): despite Random
-  Forest being specified as the "primary prototype," the evaluation showed Logistic
-  Regression matches or beats Random Forest at every recall operating point except the most
-  aggressive (90% recall) — the added complexity of Random Forest isn't justified except
-  under that specific risk posture. Full reasoning in `model_evaluation_report.md`.
+  given the fixed model configurations specified and the limited fraud-positive sample size.
+- **Logistic Regression selected as the primary deployed model** (Step 6): matches or beats
+  Random Forest at every recall operating point except the most aggressive (90% recall).
+- **`amount_to_avg_ratio` winsorized at the 99th percentile** (review round): extreme
+  outliers (max 31,762x baseline) were causing some fraud probabilities to mathematically
+  saturate at exactly 1.000000. Capping at 74.58 (99th percentile, affecting 1% of rows)
+  preserved ranking behavior while resolving this.
+- **Scaled features clipped to +/-5 standard deviations** (review round): winsorizing alone
+  did not fully resolve saturation - `transaction_velocity_1h`, a heavily skewed feature
+  (98.9% zero), produces extreme standardized z-scores for its rare non-zero values even
+  though the raw values themselves are small. Clipping all scaled features post-`StandardScaler`
+  addresses this mechanism generally, rather than chasing individual raw features one at a time.
+- **Currency investigated, not altered in modeling**: confirmed every account transacts in
+  exactly one currency consistently, so `amount_to_avg_ratio` (always account-relative)
+  remained valid throughout. Added `amount_usd` as a display-only standardized figure for
+  the Streamlit queue, where raw multi-currency amounts would otherwise look misleadingly
+  comparable. See `eda_summary.md` for the full investigation and a caught merge bug
+  (`currency_x`/`currency_y`) found along the way.
 
-## 4. What the Model Actually Learned (Summary of EDA Findings)
+## 4. What the Model Actually Learned
 
-Ranked by strength, full detail in `docs/eda_summary.md`:
+**EDA findings** (ranked by strength, full detail in `docs/eda_summary.md`):
 
 | Signal | Strength |
 |---|---|
 | Transaction velocity | Very strong (near-deterministic in this dataset) |
-| Amount-to-average deviation | Strong (~6x median shift; drives most flagged transactions) |
+| Amount-to-average deviation | Strong (~6x median shift) |
 | Merchant category | Strong (Wire Transfer, Payroll Transfer, Crypto Exchange riskiest) |
 | Device novelty (new device) | Moderate |
 | Channel | Weak-to-moderate |
 | Cross-border activity | Weak |
 | Device on record (missing) | No signal |
 
-The deployed app's explainability output consistently reflects this: `amount_to_avg_ratio`
-dominates most flagged transactions' contribution breakdown, sometimes so strongly that the
-sigmoid probability saturates to exactly 1.000000 — a mathematical consequence of extreme
-outlier values, not a modeling error (see Section 5).
+**Model feature importance** (full detail in `model_evaluation_report.md` Section 7): both
+deployed models agree that `amount_to_avg_ratio` and `transaction_velocity_1h` dominate, but
+weigh them differently - Logistic Regression gives `amount_to_avg_ratio` nearly 7x the
+weight of velocity, while Random Forest treats them as almost equally important. This
+reflects a structural difference in how each algorithm captures a smooth linear
+relationship versus a sharp threshold effect, not a disagreement about the underlying data.
 
 ## 5. Known Limitations and Caveats
 
-- **Synthetic/prototype data**: this project uses provided sample data, not live production
-  fraud data (explicitly out of scope). Real-world performance, especially the near-perfect
-  separation seen for `transaction_velocity_1h`, may not replicate on real transaction data.
-- **Saturated probabilities**: some flagged transactions show a fraud probability of exactly
-  1.000000 due to very large feature contributions pushing the sigmoid function to its
-  numerical limit. This reflects extreme amount-deviation values in the data, not an error.
+- **Synthetic/prototype data**: not live production fraud data (explicitly out of scope).
+  Real-world performance, especially the near-perfect separation seen for
+  `transaction_velocity_1h`, may not replicate on real transaction data.
+- **Some probabilities remain very close to 1** (e.g. 0.999998) when multiple strong
+  signals combine on the same transaction (e.g. high velocity + high amount deviation +
+  a risky merchant category). This is expected, genuine model confidence, not a
+  calibration bug - distinct transactions now produce distinct values rather than all
+  pegging to an identical 1.000000, which was the original issue (see Section 7).
 - **Fixed model configuration**: Random Forest was trained per the brief's specification
-  (300 trees, max depth 10) rather than tuned; a different configuration could change the
-  Step 6 comparison.
-- **No live scoring endpoint, analyst feedback loop, or retraining pipeline** — explicitly
-  out of scope per the original problem statement (Section 6 of
-  `docs/problem_statement.md`).
+  rather than tuned; a different configuration could change the Step 6 comparison.
+- **No live scoring endpoint, analyst feedback loop, or retraining pipeline** - explicitly
+  out of scope per the original problem statement.
+- **Exchange rates for `amount_usd` are a single current-rate snapshot**, not the historical
+  rate on each transaction's actual date - a documented simplification, not a precision claim.
 
 ## 6. Suggested Next Steps
 
-In rough priority order:
+1. **CSV upload enhancement** (not yet built): allow analysts to upload a cleaned-format
+   transactions CSV for on-demand scoring, rather than only viewing the fixed test set.
+   Requires applying the same encoding as `03_feature_engineering.ipynb`, reindexing against
+   the saved `feature_columns.pkl` schema (filling missing category columns with 0), and
+   applying the same winsorizing cap and scaled-feature clipping used in training.
+2. **SHAP-based explainability** (optional, raised in review but not required): would
+   provide a more rigorous, model-agnostic alternative to the current coefficient-based
+   explanation, and would be close to necessary if Random Forest were ever chosen as the
+   primary model instead of Logistic Regression, since it lacks simple linear coefficients.
+3. **Threshold selection UI**: let an analyst adjust the operating recall/precision point
+   interactively, using the precision-at-recall analysis already computed in Step 6.
+4. **Scoring endpoint and monitoring**: package the chosen model behind an API, log analyst
+   outcomes to build a growing labeled dataset, and establish a retraining cadence.
+5. **Revisit Random Forest vs. Logistic Regression** if the business adopts an aggressive
+   (>=90% recall) fraud policy.
 
-1. **CSV upload enhancement** (paused mid-design): allow analysts to upload a cleaned-format
-   transactions CSV (human-readable columns + engineered numeric features, not yet one-hot
-   encoded) for on-demand scoring, rather than only viewing the fixed test set. Requires
-   applying the same encoding as `03_feature_engineering.ipynb`, then reindexing the result
-   against the saved `feature_columns.pkl` schema (filling any missing category columns with
-   0) before scoring, since an upload may not contain every category value seen in training.
-2. **Threshold selection UI**: let an analyst adjust the operating recall/precision point
-   interactively in the app, using the precision-at-recall analysis already computed in
-   Step 6, rather than only showing the model's default 0.5 threshold.
-3. **Scoring endpoint and monitoring**, as outlined in the original Step 7 plan: package the
-   chosen model behind an API, log analyst outcomes (confirmed fraud vs. false positive) to
-   build a growing labeled dataset, and establish a periodic retraining cadence.
-4. **Revisit the Random Forest vs. Logistic Regression decision** if the business adopts an
-   aggressive (≥90% recall) fraud policy, per the Step 6 recommendation.
+## 7. Supervisor Review Round - Issues Raised and Resolved
 
-## 7. How to Run This Project
+A review of the initial deliverable surfaced five items, all addressed:
+
+| Item Raised | Resolution |
+|---|---|
+| "How did we treat class imbalance?" / requested SMOTE | Implemented SMOTE as a third model variant, evaluated identically to the other two. Found statistically equivalent to class weighting - see Section 3 and `model_evaluation_report.md` Section 8. |
+| Feature importance not shown | Added global feature importance analysis (coefficient magnitude for Logistic Regression, built-in `feature_importances_` for Random Forest) with a comparison chart - `model_evaluation_report.md` Section 7. |
+| Currency column - could affect `amount` | Investigated: confirmed each account uses one currency consistently, so `amount_to_avg_ratio` was never affected. Added `amount_usd` for display comparability. Caught and fixed an unrelated merge bug (`currency_x`/`currency_y` duplicate columns) in the process. |
+| Streamlit shows test data, not future predictions | Root issue acknowledged; CSV upload for on-demand scoring of new transactions identified as the fix, carried forward to Section 6 (not yet built). |
+| Transaction ID shouldn't be in the interface; fraud probability showing exactly 1.000000 | Removed `transaction_id` from the main table (kept available internally for the "Explain" dropdown via a separate reference to `data`, avoiding a `KeyError` this change initially caused). Root-caused the saturated probability to two compounding issues - extreme outliers in `amount_to_avg_ratio` and extreme standardized values from the skewed `transaction_velocity_1h` feature - fixed via winsorizing and scaled-feature clipping respectively, and found/fixed an inconsistency where one of two scaling code paths in `app.py` had the clipping fix applied and the other didn't. |
+
+## 8. How to Run This Project
 
 ```powershell
 # Launch the review queue app (adjust interpreter path if needed - see note below)
@@ -136,22 +163,7 @@ streamlit run app.py
 & "C:\Program Files\Python314\python3.14t.exe" -m streamlit run app.py
 ```
 
-To retrain or re-run any phase, execute the notebooks in order (`01` through `04`) — each
-reads from the previous phase's saved output in `data/processed/`.
-
-## Note: Clarifying Column Counts Across Pipeline Stages
-
-Three different files in this pipeline happen to produce column counts that look similar
-or identical, which can be confusing — they are genuinely different sets of columns, not
-the same 29 appearing twice:
-
-| File | Shape | Contents |
-|---|---|---|
-| `data/processed/finlora_cleaned.csv` | 126,000 × 29 | Full cleaned dataset: identifiers, timestamps, raw amount/currency, engineered numeric signals, categorical fields as plain text, target label |
-| (intermediate, one-hot encoded, not saved separately) | 126,000 × 47 | Cleaned columns minus 4 categoricals, plus 22 new one-hot dummy columns |
-| `data/processed/finlora_model_ready.csv` | 126,000 × 30 | Final model input: 29 selected/encoded features + 1 target column (`is_fraud`) |
-
-The two "29"s are a coincidence of counting, not the same columns — the cleaned dataset's
-29 includes non-feature columns like `transaction_id` and `timestamp` that are deliberately
-excluded from modeling, while the model-ready file's 29 features are purely the encoded,
-numeric columns the model actually learns from.
+To retrain or re-run any phase, execute the notebooks in order (`01` through `04`) - each
+reads from the previous phase's saved output in `data/processed/`. Any change to feature
+engineering (Step 4) requires re-running `04_modeling.ipynb` afterward to keep the saved
+models, scaler, and review queue consistent with the current data.
