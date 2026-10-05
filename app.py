@@ -20,7 +20,7 @@ X_scaled = np.clip(X_scaled, -5, 5)
 data['fraud_probability'] = logreg.predict_proba(X_scaled)[:, 1]
 
 # --- Build the ranked review queue ---
-display_cols = ['transaction_id', 'account_id', 'timestamp', 'amount',
+display_cols = ['account_id', 'timestamp', 'amount_usd', 'currency',
                 'merchant_name', 'merchant_category', 'channel', 'fraud_probability']
 queue = data[display_cols].sort_values('fraud_probability', ascending=False)
 
@@ -41,7 +41,7 @@ st.dataframe(queue.head(50), width='stretch')
 st.subheader("Explain a Flagged Transaction")
 
 selected_id = st.selectbox(
-    "Select a transaction to explain:", queue['transaction_id'].head(50))
+    "Select a transaction to explain:", data.sort_values('fraud_probability', ascending=False)['transaction_id'].head(50))
 
 if selected_id:
     row = data[data['transaction_id'] == selected_id].iloc[0]
