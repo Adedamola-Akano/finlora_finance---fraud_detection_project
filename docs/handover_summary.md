@@ -4,6 +4,11 @@
 **Status:** Core pipeline complete and deployed (Steps 1–7), including a full round of
 fixes following supervisor review (Section 7) and the CSV upload enhancement (Section 8).
 
+## Live Application
+
+The deployed app is publicly accessible at:
+**https://finlora-fraud-detection.streamlit.app**
+
 ---
 
 ## 1. What This Project Delivers
